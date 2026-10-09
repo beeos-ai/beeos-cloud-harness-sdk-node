@@ -1,0 +1,36 @@
+name: Publish Harness SDK to npm
+on:
+  push:
+    tags:
+      - harness-sdk-node-v*
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      # npm OIDC requires npm >=11.5.1 and Node >=22.14.0.
+      - run: npm install --global npm@11.19.0
+      - name: Verify release tag
+        run: |
+          node --input-type=module - <<'JS'
+          import fs from 'node:fs';
+          const { version } = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          if (process.env.GITHUB_REF_NAME !== `harness-sdk-node-v${version}`) {
+            throw new Error('Release tag does not match the package version');
+          }
+          JS
+      - run: npm ci --no-audit
+      - run: npm test
+      - run: npm run build
+      - run: npm publish --provenance --access public
