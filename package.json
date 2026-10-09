@@ -1,6 +1,6 @@
 {
   "name": "@beeos-ai/cloud-harness-sdk",
-  "version": "1.0.0-cloud.6",
+  "version": "1.0.0",
   "description": "BeeOS managed Cloud agent runtime authority and durable delivery transport",
   "license": "MIT",
   "repository": {
