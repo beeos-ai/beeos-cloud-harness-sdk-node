@@ -1,6 +1,6 @@
 {
   "name": "@beeos-ai/cloud-harness-sdk",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "BeeOS managed Cloud agent runtime authority and durable delivery transport",
   "license": "MIT",
   "repository": {
@@ -30,7 +30,7 @@
     "prepack": "npm run build"
   },
   "dependencies": {
-    "@beeos-ai/beeos-types": "4.4.2-cloud.3",
+    "@beeos-ai/beeos-types": "4.5.0",
     "centrifuge": "^5.5.3",
     "ws": "^8.18.0"
   },
