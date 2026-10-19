@@ -110,7 +110,7 @@ export class RuntimeMessagePlane {
   }
 }
 
-/** Internal operation input resolve and output presign/confirm. Origin is the Agent Gateway, not Message Service. */
+/** Internal operation input resolve and output presign/confirm/resolve. Origin is the Agent Gateway, not Message Service. */
 export class RuntimeOperationFiles {
   constructor(private readonly http: RuntimeLeaseHttp) {}
 
@@ -119,6 +119,13 @@ export class RuntimeOperationFiles {
     const response = await this.http.postJson(
       CLOUD_GATEWAY_RUNTIME_ROUTES.inputFilesResolve(operationId), credential, body, { retry: true }, signal);
     return await expectJson(response, "input file resolve");
+  }
+
+  async resolveOutput(credential: RuntimeLeaseCredential, operationId: string, body: unknown,
+    signal?: AbortSignal): Promise<unknown> {
+    const response = await this.http.postJson(
+      CLOUD_GATEWAY_RUNTIME_ROUTES.outputFiles(operationId, "resolve"), credential, body, { retry: true }, signal);
+    return await expectJson(response, "output file resolve");
   }
 
   async presignOutput(credential: RuntimeLeaseCredential, operationId: string, body: unknown,

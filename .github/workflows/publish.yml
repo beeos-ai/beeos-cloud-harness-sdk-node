@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    outputs:
+      dist_tag: ${{ steps.release.outputs.dist_tag }}
     steps:
       - name: Require a release tag on main
         env:
@@ -26,14 +28,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24.15.0"
-      - name: Verify release tag
+      - name: Verify release tag and select npm channel
+        id: release
         run: |
           node --input-type=module - <<'JS'
           import fs from 'node:fs';
           const { version } = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          if (!/^\d+\.\d+\.\d+(?:-cloud\.\d+)?$/.test(version)) {
+            throw new Error('Use a stable version or a cloud prerelease version');
+          }
           if (process.env.GITHUB_REF_NAME !== `harness-sdk-node-v${version}`) {
             throw new Error('Release tag does not match the package version');
           }
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `dist_tag=${version.includes('-') ? 'cloud-staging' : 'latest'}\n`);
           JS
       - run: npm ci --no-audit
       - run: npm test
@@ -61,7 +68,8 @@ jobs:
           # Node 24.15.0 bundles npm 11.12.1 (trusted publishing requires >=11.5.1).
           node-version: "24.15.0"
           registry-url: "https://registry.npmjs.org"
-      - run: npm publish ./dist/*.tgz --provenance --access public --tag latest
+      - run: npm publish ./dist/*.tgz --provenance --access public --tag "$NPM_DIST_TAG"
         env:
           # Temporary token authentication until npm trusted publishing is configured.
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_DIST_TAG: ${{ needs.build.outputs.dist_tag }}
