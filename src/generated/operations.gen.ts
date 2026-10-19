@@ -45,6 +45,7 @@ export const OPERATIONS = {
   runtimeResourceRedeem: { method: "POST", path: "/api/v1/internal/runtime/operations/{operationId}/resources/{kind}/{resourceRef}/redeem", service: "agent-gateway" },
   runtimeOutputFilePresign: { method: "POST", path: "/api/v1/internal/runtime/operations/{operationId}/output-files/presign", service: "agent-gateway" },
   runtimeOutputFileConfirm: { method: "POST", path: "/api/v1/internal/runtime/operations/{operationId}/output-files/confirm", service: "agent-gateway" },
+  runtimeOutputFileResolve: { method: "POST", path: "/api/v1/internal/runtime/operations/{operationId}/output-files/resolve", service: "agent-gateway" },
   runtimeInputFilesResolve: { method: "POST", path: "/api/v1/internal/runtime/operations/{operationId}/input-files/resolve", service: "agent-gateway" },
   agentTemplateOriginReport: { method: "POST", path: "/api/v1/agents/{agentId}/template-origin", service: "agent-gateway" },
   channelCreate: { method: "POST", path: "/api/v1/channels", service: "agent-gateway" },
@@ -108,6 +109,7 @@ export interface OperationPathParams {
   runtimeResourceRedeem: { operationId: string; kind: string; resourceRef: string };
   runtimeOutputFilePresign: { operationId: string };
   runtimeOutputFileConfirm: { operationId: string };
+  runtimeOutputFileResolve: { operationId: string };
   runtimeInputFilesResolve: { operationId: string };
   agentTemplateOriginReport: { agentId: string };
   channelCreate: Record<never, never>;

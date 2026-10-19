@@ -1331,6 +1331,33 @@ export type RuntimeOutputFileConfirmResponses = {
 
 export type RuntimeOutputFileConfirmResponse = RuntimeOutputFileConfirmResponses[keyof RuntimeOutputFileConfirmResponses];
 
+export type RuntimeOutputFileResolveData = {
+    body?: JsonObject2;
+    path: {
+        operationId: string;
+    };
+    query?: never;
+    url: '/api/v1/internal/runtime/operations/{operationId}/output-files/resolve';
+};
+
+export type RuntimeOutputFileResolveErrors = {
+    /**
+     * Error response.
+     */
+    default: JsonObject;
+};
+
+export type RuntimeOutputFileResolveError = RuntimeOutputFileResolveErrors[keyof RuntimeOutputFileResolveErrors];
+
+export type RuntimeOutputFileResolveResponses = {
+    /**
+     * JSON object response.
+     */
+    200: JsonObject;
+};
+
+export type RuntimeOutputFileResolveResponse = RuntimeOutputFileResolveResponses[keyof RuntimeOutputFileResolveResponses];
+
 export type RuntimeInputFilesResolveData = {
     body?: JsonObject2;
     path: {

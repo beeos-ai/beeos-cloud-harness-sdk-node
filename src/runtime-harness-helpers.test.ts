@@ -60,6 +60,22 @@ describe("runtime message plane", () => {
     expect(operationPath("runtimeDeliveriesRead")).toBe("/api/v1/runtime/deliveries/read");
   });
 
+  it("resolves a confirmed output through the lease-only gateway route", async () => {
+    const body = { requestMessageId: "message-1", paramsHash: "a".repeat(64), activeRunRegistrationId: "op/1", fileId: "file-1" };
+    const result = { operationId: "op/1", ...body, file: { file_id: "file-1" }, download: { url: "https://objects.test/file" }, transferPolicy: { allowedOrigin: "https://objects.test" } };
+    const fetch = jsonFetch((url, init) => {
+      expect(url.toString()).toBe("https://gw.test/api/v1/internal/runtime/operations/op%2F1/output-files/resolve");
+      expect(init.method).toBe("POST");
+      expect(JSON.parse(String(init.body))).toEqual(body);
+      expect(new Headers(init.headers).get("authorization")).toBe("Bearer lease-credential");
+      expect(new Headers(init.headers).get("x-api-key")).toBeNull();
+      expect(init.redirect).toBe("error");
+      return Response.json(result);
+    });
+    const files = new RuntimeOperationFiles(new RuntimeLeaseHttp({ origin: "https://gw.test", fetch }));
+    expect(await files.resolveOutput(credential, "op/1", body)).toEqual(result);
+  });
+
   it("refuses session model and cron without the delivery key", async () => {
     const fetch = vi.fn();
     const plane = new RuntimeMessagePlane(new RuntimeLeaseHttp({ origin: "https://ms.test", fetch: fetch as unknown as typeof fetch }));

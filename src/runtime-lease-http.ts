@@ -46,8 +46,8 @@ export const CLOUD_MESSAGE_ROUTES = Object.freeze({
 });
 
 export const CLOUD_GATEWAY_RUNTIME_ROUTES = Object.freeze({
-  outputFiles: (operationId: string, stage: "presign" | "confirm") =>
-    operationPath(stage === "presign" ? "runtimeOutputFilePresign" : "runtimeOutputFileConfirm", { operationId }),
+  outputFiles: (operationId: string, stage: "presign" | "confirm" | "resolve") =>
+    operationPath(stage === "presign" ? "runtimeOutputFilePresign" : stage === "confirm" ? "runtimeOutputFileConfirm" : "runtimeOutputFileResolve", { operationId }),
   inputFilesResolve: (operationId: string) => operationPath("runtimeInputFilesResolve", { operationId }),
 });
 
