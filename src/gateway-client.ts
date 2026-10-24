@@ -194,9 +194,12 @@ class GatewayFiles {
 
 class GatewayCanvas {
   constructor(private readonly gw: AgentGatewayClient) {}
-  /** The connection token is not bound to one agent; association travels on each canvas message. */
-  async token(init?: GatewayRequestInit): Promise<GatewayCanvasToken> {
-    const raw = await this.gw.json<Record<string, unknown>>("POST", operationPath("canvasTokenCreate"), {},
+  /** The connection token is not bound to one agent; association travels on each canvas message.
+   * A Sandbox v1 guest names its claimed `sandboxId`: the Gateway then signs an
+   * Agent-scoped token from the Sandbox Binding (no instance). */
+  async token(init?: GatewayRequestInit, sandboxId?: string): Promise<GatewayCanvasToken> {
+    const raw = await this.gw.json<Record<string, unknown>>("POST", operationPath("canvasTokenCreate"),
+      sandboxId ? { sandbox_id: sandboxId } : {},
       { retry: TRANSIENT_BACKOFF, ...init });
     const body = (raw?.data && typeof raw.data === "object" ? raw.data : raw) as Record<string, unknown>;
     const token = typeof body?.token === "string" ? body.token : "";

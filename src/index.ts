@@ -13,6 +13,9 @@ export * from "./gateway-client.js";
 export * from "./grant-jwks.js";
 export * from "./runtime-lease-http.js";
 export * from "./runtime-message-plane.js";
+export * from "./runtime-chat-store.js";
+export * from "./runtime-original-intent.js";
+export * from "./chat-store-contract.js";
 export * from "./runtime-claim.js";
 export * from "./terminal-bridge.js";
 export * from "./canvas-relay.js";
@@ -23,3 +26,4 @@ export {
   type OperationId as HarnessOperationId,
 } from "./generated/operations.gen.js";
 export { RuntimeMethod } from "./generated/types.gen.js";
+export * from "./runtime-memory.js";
