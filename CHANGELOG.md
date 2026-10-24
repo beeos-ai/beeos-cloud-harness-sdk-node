@@ -3,9 +3,10 @@
 All notable changes to `@beeos-ai/cloud-harness-sdk` are documented here. This
 project follows Semantic Versioning.
 
-## [1.0.1] - 2026-10-25
+## [1.0.1-cloud.1] - 2026-10-25
 
-Staging release (PATCH from the published 1.0.0; advances past `1.0.0-cloud.7`).
+Staging prerelease of 1.0.1, published under the `cloud-staging` dist-tag; `latest`
+stays 1.0.0 until 1.0.1 itself is released. Advances past `1.0.0-cloud.7`.
 Additive: existing exports keep their signatures.
 
 - Export the runtime original-intent, memory and chat-store contracts for native
