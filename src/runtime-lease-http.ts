@@ -90,7 +90,8 @@ export class RuntimeLeaseHttp {
       }
       return response;
     };
-    const policy = resilience.retry === true ? this.options.retry || TRANSIENT_BACKOFF
+    const policy = resilience.retry === false ? false
+      : resilience.retry === true ? this.options.retry || TRANSIENT_BACKOFF
       : resilience.retry || this.options.retry || false;
     if (!policy) return await send();
     return await retryWithBackoff(async () => {

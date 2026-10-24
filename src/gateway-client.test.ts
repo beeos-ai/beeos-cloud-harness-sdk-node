@@ -116,6 +116,14 @@ describe("AgentGatewayClient", () => {
     await expect(client().canvas.token()).rejects.toBeInstanceOf(CloudHttpError);
   });
 
+  it("names the claimed Sandbox in the canvas token body only when given", async () => {
+    const spy = stubFetch(() => json({ token: "t" }));
+    await client().canvas.token(undefined, "sandbox-1");
+    await client().canvas.token();
+    expect(JSON.parse(String(spy.mock.calls[0]![1]!.body))).toEqual({ sandbox_id: "sandbox-1" });
+    expect(JSON.parse(String(spy.mock.calls[1]![1]!.body))).toEqual({});
+  });
+
   it("redeems an operation resource with encoded segments and never replays it", async () => {
     let calls = 0;
     const spy = stubFetch(() => { calls += 1; return new Response("bytes", { status: 503 }); });
