@@ -42,6 +42,9 @@ export interface GatewayA2aRpcResult {
 
 const JSON_HEADERS = { "content-type": "application/json" } as const;
 
+/** Native Sandbox canvas token requests carry the caller's current Cluster lease. */
+export const CANVAS_RUNTIME_LEASE_HEADER = "X-BeeOS-Runtime-Lease";
+
 export class AgentGatewayClient {
   readonly baseUrl: URL;
   readonly files: GatewayFiles;
@@ -196,11 +199,16 @@ class GatewayCanvas {
   constructor(private readonly gw: AgentGatewayClient) {}
   /** The connection token is not bound to one agent; association travels on each canvas message.
    * A Sandbox v1 guest names its claimed `sandboxId`: the Gateway then signs an
-   * Agent-scoped token from the Sandbox Binding (no instance). */
-  async token(init?: GatewayRequestInit, sandboxId?: string): Promise<GatewayCanvasToken> {
+   * Agent-scoped token from the Sandbox Binding (no instance) and requires the
+   * allocation's current `runtimeLease`, bound to the signing key and verified
+   * online (doc 21 P1). Older Gateways ignore the header. */
+  async token(init?: GatewayRequestInit, sandboxId?: string, runtimeLease?: string): Promise<GatewayCanvasToken> {
+    const lease = runtimeLease?.trim();
+    const headers = new Headers(init?.headers);
+    if (lease) headers.set(CANVAS_RUNTIME_LEASE_HEADER, lease);
     const raw = await this.gw.json<Record<string, unknown>>("POST", operationPath("canvasTokenCreate"),
       sandboxId ? { sandbox_id: sandboxId } : {},
-      { retry: TRANSIENT_BACKOFF, ...init });
+      { retry: TRANSIENT_BACKOFF, ...init, headers });
     const body = (raw?.data && typeof raw.data === "object" ? raw.data : raw) as Record<string, unknown>;
     const token = typeof body?.token === "string" ? body.token : "";
     if (!token) throw new CloudHttpError("POST", operationPath("canvasTokenCreate"), 200, "canvas token response missing token");

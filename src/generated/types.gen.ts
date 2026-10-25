@@ -784,6 +784,12 @@ export type AgentFileResolveResponse = AgentFileResolveResponses[keyof AgentFile
 
 export type CanvasTokenCreateData = {
     body?: JsonObject2;
+    headers?: {
+        /**
+         * Current Cluster runtime lease credential. Required on the Sandbox branch (the body names `sandbox_id`); the Gateway binds the lease to the signing-key fingerprint and verifies it online. Older Gateways ignore the header.
+         */
+        'X-BeeOS-Runtime-Lease'?: string;
+    };
     path?: never;
     query?: never;
     url: '/api/v1/canvas/token';
