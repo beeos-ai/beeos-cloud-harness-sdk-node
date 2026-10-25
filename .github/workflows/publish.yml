@@ -106,17 +106,15 @@ jobs:
       - name: Verify package contents
         run: |
           set -euo pipefail
-          npm pack --dry-run --json > "$RUNNER_TEMP/pack.json"
+          npm pack --dry-run --json --ignore-scripts > "$RUNNER_TEMP/pack.json"
           node --input-type=module - "$RUNNER_TEMP/pack.json" <<'JS'
           import fs from 'node:fs';
           const [packed] = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
           const listed = new Set(packed.files.map((file) => file.path));
           const declared = JSON.parse(fs.readFileSync('package.json', 'utf8')).files ?? [];
           const missing = declared.filter((entry) => {
-            const path = entry.replace(/^\.\//, '');
-            return path.endsWith('/')
-              ? ![...listed].some((file) => file.startsWith(path))
-              : !listed.has(path);
+            const path = entry.replace(/^\.\//, '').replace(/\/$/, '');
+            return !listed.has(path) && ![...listed].some((file) => file.startsWith(`${path}/`));
           });
           if (missing.length > 0) {
             console.error(`::error::npm pack is missing declared entries: ${missing.join(', ')}`);
