@@ -1,11 +1,27 @@
 name: Publish Harness SDK to npm
-# Release tags must point to a commit on main.
+# Publish a harness-sdk-node-v<version> tag on main, or run this workflow
+# manually with a tag or version.
 on:
   push:
     tags:
       - harness-sdk-node-v*
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag on main (e.g. harness-sdk-node-v1.0.1-cloud.1). Used when version is empty."
+        required: false
+        type: string
+      version:
+        description: "Package version (e.g. 1.0.1-cloud.1); the tag harness-sdk-node-v<version> is derived."
+        required: false
+        type: string
 
-permissions: {}
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-harness-sdk-node
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -15,21 +31,61 @@ jobs:
     outputs:
       dist_tag: ${{ steps.release.outputs.dist_tag }}
     steps:
+      - name: Resolve release tag
+        id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            tag="$INPUT_TAG"
+            version="$INPUT_VERSION"
+            if [ -z "$tag" ] && [ -z "$version" ]; then
+              echo "::error::workflow_dispatch requires the tag or version input"
+              exit 1
+            fi
+            if [ -z "$tag" ]; then
+              tag="harness-sdk-node-v${version}"
+            fi
+            if [ -n "$version" ] && [ "$tag" != "harness-sdk-node-v${version}" ]; then
+              echo "::error::tag $tag does not match version $version"
+              exit 1
+            fi
+          else
+            tag="$REF_NAME"
+          fi
+          case "$tag" in
+            harness-sdk-node-v[0-9]*) ;;
+            *) echo "::error::$tag is not a harness-sdk-node-v<version> release tag"; exit 1 ;;
+          esac
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.resolve.outputs.tag }}
+          persist-credentials: false
+
       - name: Require a release tag on main
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.resolve.outputs.tag }}
         run: |
           set -euo pipefail
-          status=$(gh api "repos/$GITHUB_REPOSITORY/compare/main...$GITHUB_SHA" --jq .status)
-          [[ "$status" == identical || "$status" == behind ]] || { echo "::error::$GITHUB_REF_NAME ($GITHUB_SHA) is not on main"; exit 1; }
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
+          sha=$(git rev-parse HEAD)
+          status=$(gh api "repos/$GITHUB_REPOSITORY/compare/main...$sha" --jq .status)
+          [[ "$status" == identical || "$status" == behind ]] || { echo "::error::$TAG ($sha) is not on main"; exit 1; }
+
       - uses: actions/setup-node@v4
         with:
           node-version: "24.15.0"
+
       - name: Verify release tag and select npm channel
         id: release
+        env:
+          TAG: ${{ steps.resolve.outputs.tag }}
         run: |
           node --input-type=module - <<'JS'
           import fs from 'node:fs';
@@ -37,14 +93,38 @@ jobs:
           if (!/^\d+\.\d+\.\d+(?:-cloud\.\d+)?$/.test(version)) {
             throw new Error('Use a stable version or a cloud prerelease version');
           }
-          if (process.env.GITHUB_REF_NAME !== `harness-sdk-node-v${version}`) {
+          if (process.env.TAG !== `harness-sdk-node-v${version}`) {
             throw new Error('Release tag does not match the package version');
           }
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, `dist_tag=${version.includes('-') ? 'cloud-staging' : 'latest'}\n`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `dist_tag=${version.includes('-') ? 'cloud' : 'latest'}\n`);
           JS
+
       - run: npm ci --no-audit
       - run: npm test
       - run: npm run build
+
+      - name: Verify package contents
+        run: |
+          set -euo pipefail
+          npm pack --dry-run --json > "$RUNNER_TEMP/pack.json"
+          node --input-type=module - "$RUNNER_TEMP/pack.json" <<'JS'
+          import fs from 'node:fs';
+          const [packed] = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const listed = new Set(packed.files.map((file) => file.path));
+          const declared = JSON.parse(fs.readFileSync('package.json', 'utf8')).files ?? [];
+          const missing = declared.filter((entry) => {
+            const path = entry.replace(/^\.\//, '');
+            return path.endsWith('/')
+              ? ![...listed].some((file) => file.startsWith(path))
+              : !listed.has(path);
+          });
+          if (missing.length > 0) {
+            console.error(`::error::npm pack is missing declared entries: ${missing.join(', ')}`);
+            process.exit(1);
+          }
+          console.log(`npm pack contains ${listed.size} entries and all ${declared.length} declared files entries`);
+          JS
+
       - run: npm pack --pack-destination "$RUNNER_TEMP"
       - uses: actions/upload-artifact@v4
         with:
@@ -68,8 +148,9 @@ jobs:
           # Node 24.15.0 bundles npm 11.12.1 (trusted publishing requires >=11.5.1).
           node-version: "24.15.0"
           registry-url: "https://registry.npmjs.org"
-      - run: npm publish ./dist/*.tgz --provenance --access public --tag "$NPM_DIST_TAG"
+      - name: Publish to npm
+        run: npm publish ./dist/*.tgz --provenance --access public --tag "$NPM_DIST_TAG"
         env:
-          # Temporary token authentication until npm trusted publishing is configured.
+          # Token authentication until npm trusted publishing is configured.
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_DIST_TAG: ${{ needs.build.outputs.dist_tag }}

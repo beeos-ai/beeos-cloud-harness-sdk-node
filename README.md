@@ -41,10 +41,24 @@ returned signed headers. Do not send the runtime lease to object storage.
 Check the downloaded size and SHA-256; the signed link lasts five minutes.
 Input attachments continue to use `resolveInput`.
 
+## Releasing
+
+Publishing runs in GitHub Actions; do not run `npm publish` locally.
+
+- Push a `harness-sdk-node-v<package version>` tag to a commit on `main` (e.g.
+  `harness-sdk-node-v1.0.1-cloud.1`). `.github/workflows/publish.yml` verifies
+  the tag is on `main`, matches `package.json` `version`, and that `npm pack`
+  contains every entry declared in `files`.
+- Prerelease versions (`-cloud.N`) publish under the npm dist tag `cloud`;
+  stable versions publish under `latest`.
+- To backfill a release, run the `Publish Harness SDK to npm` workflow manually
+  (`workflow_dispatch`) with either `tag` or `version`; `version` derives
+  `harness-sdk-node-v<version>`, and both must agree with `package.json`.
+- The workflow authenticates with the `NPM_TOKEN` repository secret
+  (`NODE_AUTH_TOKEN`) and publishes with `--access public`.
+
 Run `npm test` and `npm run build` before release. File-route tests verify the
-body, escaped operation path, lease header and redirect policy. A release tag
-must match `harness-sdk-node-v<package version>` and be on `main`. Stable
-versions publish to `latest`; `-cloud.N` versions publish to `cloud-staging`.
+body, escaped operation path, lease header and redirect policy.
 
 Source and issues: [beeos-cloud-harness-sdk-node](https://github.com/beeos-ai/beeos-cloud-harness-sdk-node).
 
