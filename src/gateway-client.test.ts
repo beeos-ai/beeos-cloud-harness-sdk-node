@@ -1,6 +1,6 @@
 import { generateKeyPairSync, sign } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AgentGatewayClient } from "./gateway-client.js";
+import { AgentGatewayClient, CANVAS_RUNTIME_LEASE_HEADER } from "./gateway-client.js";
 import { CloudHttpError } from "./retry.js";
 import type { AgentRequestIdentity } from "./agent-request-signing.js";
 
@@ -122,6 +122,18 @@ describe("AgentGatewayClient", () => {
     await client().canvas.token();
     expect(JSON.parse(String(spy.mock.calls[0]![1]!.body))).toEqual({ sandbox_id: "sandbox-1" });
     expect(JSON.parse(String(spy.mock.calls[1]![1]!.body))).toEqual({});
+  });
+
+  it("presents the runtime lease on the Sandbox canvas token request", async () => {
+    const spy = stubFetch(() => json({ token: "t" }));
+    await client().canvas.token(undefined, "sandbox-1", "lease-jwt");
+    await client().canvas.token({ headers: { "x-trace": "1" } }, "sandbox-1", "next-lease");
+    await client().canvas.token(undefined, "sandbox-1");
+    const lease = (call: number) => new Headers(spy.mock.calls[call]![1]!.headers).get(CANVAS_RUNTIME_LEASE_HEADER);
+    expect(lease(0)).toBe("lease-jwt");
+    expect(lease(1)).toBe("next-lease");
+    expect(new Headers(spy.mock.calls[1]![1]!.headers).get("x-trace")).toBe("1");
+    expect(lease(2)).toBeNull();
   });
 
   it("redeems an operation resource with encoded segments and never replays it", async () => {
