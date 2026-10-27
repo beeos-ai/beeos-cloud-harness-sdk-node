@@ -6,6 +6,7 @@ import { RuntimeChatPreparedClearError, type RuntimeChatPreparedClearProof } fro
 // Node 22 native JSON numeric source retention; local shape, never a global patch.
 type RawJson = typeof JSON & {
   rawJSON(source: string): unknown;
+  isRawJSON(value: unknown): value is { rawJSON: string };
   parse(text: string, reviver: (key: string, value: unknown,
     context?: { source?: string }) => unknown): unknown;
 };
@@ -22,6 +23,35 @@ function retainedParts(rawText: string): unknown[] {
   if (row.parts === undefined) return [];
   if (!Array.isArray(row.parts)) throw new Error("retained reply parts invalid");
   return row.parts;
+}
+
+// JSONB may reorder object keys and normalize numeric notation. Compare values
+// without converting opaque decimal/large-integer fields to binary64 numbers.
+function numberValue(source: string): string {
+  const match = /^(-?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/.exec(source);
+  if (!match) throw new Error("retained numeric JSON invalid");
+  const fraction = match[3] ?? "";
+  const digits = (match[2] + fraction).replace(/^0+/, "");
+  if (!digits) return "0";
+  const coefficient = digits.replace(/0+$/, "");
+  const exponent = BigInt(match[4] ?? "0") - BigInt(fraction.length) + BigInt(digits.length - coefficient.length);
+  return `${match[1]}${coefficient}e${exponent}`;
+}
+
+function retainedEqual(left: unknown, right: unknown): boolean {
+  const numeric = (value: unknown) => nativeJson.isRawJSON(value)
+    ? value.rawJSON : typeof value === "number" && Number.isFinite(value) ? String(value) : undefined;
+  const a = numeric(left), b = numeric(right);
+  if (a !== undefined || b !== undefined)
+    return a !== undefined && b !== undefined && numberValue(a) === numberValue(b);
+  if (left === right) return true;
+  if (Array.isArray(left) || Array.isArray(right))
+    return Array.isArray(left) && Array.isArray(right) && left.length === right.length &&
+      left.every((value, index) => retainedEqual(value, right[index]));
+  if (!left || !right || typeof left !== "object" || typeof right !== "object") return false;
+  const keys = Object.keys(left), other = Object.keys(right);
+  return keys.length === other.length && keys.every(key => Object.hasOwn(right, key) &&
+    retainedEqual((left as Record<string, unknown>)[key], (right as Record<string, unknown>)[key]));
 }
 
 export interface RuntimeChatRetainedBinding {
@@ -95,7 +125,7 @@ export class BoundRuntimeChatReply {
         row.messageId !== this.id || row.conversationId !== this.input.binding.conversationId ||
         row.type !== "agent_reply" || row.replyTo !== this.input.binding.taskRequestMessageId ||
         row.state !== original.state || row.body !== original.body || row.stopReason !== original.stopReason ||
-        JSON.stringify(retainedParts(row.rawText)) !== JSON.stringify(retainedParts(original.rawText))) {
+        !retainedEqual(retainedParts(row.rawText), retainedParts(original.rawText))) {
       throw new Error("retained original terminal snapshot changed");
     }
   }
@@ -148,19 +178,19 @@ export class BoundRuntimeChatReply {
     const stateMatch = observed.state === state;
     let bodyMatch: boolean | "not_evaluated" = "not_evaluated";
     let stopReasonMatch: boolean | "not_evaluated" = "not_evaluated";
-    let partsStringMatch: boolean | "not_evaluated" = "not_evaluated";
+    let partsMatch: boolean | "not_evaluated" = "not_evaluated";
     if (stateMatch) bodyMatch = observed.body === this.body;
     if (bodyMatch === true) stopReasonMatch = observed.stopReason === options?.stopReason;
     if (stopReasonMatch === true) {
-      partsStringMatch = JSON.stringify(retainedParts(observed.rawText)) ===
-        JSON.stringify(this.rawParts);
+      partsMatch = retainedEqual(retainedParts(observed.rawText),
+        retainedParts(JSON.stringify({ parts: this.rawParts })));
     }
     if (stateMatch !== true || bodyMatch !== true || stopReasonMatch !== true ||
-        partsStringMatch !== true) {
+        partsMatch !== true) {
       if (mutationError) throw mutationError;
       throw new Error("retained reply terminal outcome unknown " +
         `stateMatch=${stateMatch} bodyMatch=${bodyMatch} ` +
-        `stopReasonMatch=${stopReasonMatch} partsStringMatch=${partsStringMatch}`);
+        `stopReasonMatch=${stopReasonMatch} partsMatch=${partsMatch}`);
     }
     this.snapshot = observed;
     return observed;

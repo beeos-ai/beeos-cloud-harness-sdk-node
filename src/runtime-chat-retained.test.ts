@@ -18,6 +18,7 @@ function fixture() {
   let persistTerminal = true;
   let wrongRequest = false;
   let dropTerminalParts = false;
+  let terminalParts: string | undefined;
   const http = createRuntimeChatHttpPort({ baseUrl: "https://local.invalid",
     fetchImpl: async (_url, init) => {
       const method = init?.method ?? "GET";
@@ -34,6 +35,7 @@ function fixture() {
         if (patch.state && persistTerminal) {
           state = patch.state; stopReason = patch.stop_reason;
           if (dropTerminalParts) parts = "[]";
+          if (terminalParts !== undefined) parts = terminalParts;
         }
       }
       afterRequest?.(method);
@@ -50,10 +52,34 @@ function fixture() {
     afterRequest: (hook: (method: string) => void) => { afterRequest = hook; },
     dropTerminal: (persist: boolean) => { dropTerminal = true; persistTerminal = persist; },
     wrongRequest: () => { wrongRequest = true; },
-    dropTerminalParts: () => { dropTerminalParts = true; } };
+    dropTerminalParts: () => { dropTerminalParts = true; },
+    terminalParts: (value: string) => { terminalParts = value; } };
 }
 
 describe("retained reply binding", () => {
+  it("accepts JSONB object ordering and exact numeric notation changes at completion and later readback", async () => {
+    const f = fixture(); const stream = await f.bind();
+    const reordered = '[{"nested":{"exp":1000000000000000000000000000000,"minus":0,"decimal":1.2345678901234567890,"large":9007199254740993},"type":"custom"}]';
+    f.terminalParts(reordered);
+    const row = await stream.finalize({ stopReason: "end_turn" });
+    expect(row.state).toBe("completed");
+    expect(() => stream.assertTerminalSnapshot({ ...row, rawText: '{"parts":[{"type":"custom","nested":{"large":9007199254740993,"decimal":1.234567890123456789,"minus":-0,"exp":1e30}}]}' })).not.toThrow();
+  });
+  it.each([
+    '[{"type":"custom","nested":{"large":9007199254740992,"decimal":1.234567890123456789,"minus":0,"exp":1e30}}]',
+    '[{"type":"custom","nested":{"large":9007199254740993,"decimal":1.234567890123456788,"minus":0,"exp":1e30}}]',
+    '[{"type":"custom","nested":{"large":"9007199254740993","decimal":1.234567890123456789,"minus":0,"exp":1e30}}]',
+    '[{"nested":{"large":9007199254740993,"decimal":1.234567890123456789,"minus":0,"exp":1e30}}]',
+  ])("rejects changed, rounded, retyped or missing opaque values: %s", async raw => {
+    const f = fixture(); const stream = await f.bind(); f.terminalParts(raw);
+    await expect(stream.finalize({ stopReason: "end_turn" })).rejects.toThrow("outcome unknown");
+  });
+  it("keeps array order significant when verifying a completed reply", async () => {
+    const f = fixture(); const stream = await f.bind();
+    stream.replacePart(0, { type: "custom", values: [1, 2] }); await stream.flush();
+    f.terminalParts('[{"values":[2,1],"type":"custom"}]');
+    await expect(stream.finalize({ stopReason: "end_turn" })).rejects.toThrow("outcome unknown");
+  });
   it("GET seeds UTF8 offset, only PATCH writes, unchanged parts omitted", async () => {
     const f = fixture(); const stream = await f.bind();
     stream.appendBody("!"); await stream.flush(); await stream.finalize({ stopReason: "end_turn" });
